@@ -1,0 +1,23 @@
+:root {
+  --primary: #1769ff;
+  --primary-dark: #0c4ed1;
+  --text: #101828;
+  --muted: #667085;
+  --soft: #f1f4f8;
+  --surface: #ffffff;
+  --border: #e4e9f0;
+  --success: #12a36d;
+  --warning: #e99a13;
+  --danger: #e5484d;
+  --violet: #7559ff;
+  --shadow: 0 12px 32px rgba(16, 24, 40, 0.07);
+}
+
+.app.dark {
+  --text: #f5f7fb;
+  --muted: #98a2b3;
+  --soft: #151b26;
+  --surface: #101722;
+  --border: #263142;
+  --shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+}
