@@ -1,3 +1,4 @@
+import { Link, useSearchParams } from "react-router";
 import {
   ChevronDown,
   ChevronRight,
@@ -11,17 +12,23 @@ import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import IconButton from "../../components/ui/IconButton";
 import ProductCard from "../../components/ui/ProductCard";
-import products from "../../data/products";
+import { PageEmpty } from "../../components/shared/PageState";
+import { getAllProducts, searchProducts } from "../../services/products";
 import { shopFilters } from "../../data/storefront";
 
-export default function ShopPage({ onProduct }: { onProduct: () => void }) {
+export default function ShopPage() {
+  const [params] = useSearchParams();
+  const query = params.get("search") ?? "";
+  const base = getAllProducts();
+  const visible = query ? searchProducts(query) : [...base, ...base];
+
   return (
     <main className="page-section shop-page">
       <div className="breadcrumb">Home / Laptops / Gaming laptops</div>
       <div className="shop-title">
         <div>
           <p className="eyebrow">284 PRODUCTS</p>
-          <h1>Gaming laptops</h1>
+          <h1>{query ? `Results for “${query}”` : "Gaming laptops"}</h1>
           <p>High-performance machines built for serious play.</p>
         </div>
         <div className="view-tools">
@@ -83,11 +90,23 @@ export default function ShopPage({ onProduct }: { onProduct: () => void }) {
           <Button variant="secondary" className="mobile-filter">
             <Filter size={17} /> Filter products
           </Button>
-          <div className="product-grid catalog-grid" onClick={onProduct}>
-            {[...products, ...products].map((product, index) => (
-              <ProductCard product={product} key={`${product.model}-${index}`} />
-            ))}
-          </div>
+          {visible.length === 0 ? (
+            <PageEmpty
+              title="No products found"
+              text={`Nothing matches “${query}”. Try another brand, model or category.`}
+              action={
+                <Link to="/catalog">
+                  <Button variant="secondary">Clear search</Button>
+                </Link>
+              }
+            />
+          ) : (
+            <div className="product-grid catalog-grid">
+              {visible.map((product, index) => (
+                <ProductCard product={product} key={`${product.model}-${index}`} />
+              ))}
+            </div>
+          )}
           <div className="pagination">
             <Button variant="secondary" size="icon">
               <ChevronRight size={17} />

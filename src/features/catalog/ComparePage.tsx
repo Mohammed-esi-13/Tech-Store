@@ -6,11 +6,26 @@ import {
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import IconButton from "../../components/ui/IconButton";
+import { PageEmpty } from "../../components/shared/PageState";
 import products from "../../data/products";
+import { useCart } from "../../stores/cart";
 import { comparisonRows } from "../../data/storefront";
 
 export default function ComparePage() {
+  const { add } = useCart();
   const compareProducts = products.slice(0, 3);
+
+  if (compareProducts.length === 0) {
+    return (
+      <main className="page-section compare-page">
+        <div className="breadcrumb">Home / Compare products</div>
+        <PageEmpty
+          title="Nothing to compare"
+          text="Add products to your comparison list from the catalog."
+        />
+      </main>
+    );
+  }
 
   return (
     <main className="page-section compare-page">
@@ -41,12 +56,12 @@ export default function ComparePage() {
               <IconButton label="Remove">
                 <X size={16} />
               </IconButton>
-              <img src={product.image} alt="" />
+              <img src={product.image} alt={`${product.brand} ${product.name}`} />
               <small>{product.brand}</small>
               <strong>{product.name}</strong>
               <code>{product.model}</code>
               <span>{product.price}</span>
-              <Button size="sm">
+              <Button size="sm" onClick={() => add(product, 1)}>
                 <ShoppingCart size={15} /> Add to cart
               </Button>
             </div>

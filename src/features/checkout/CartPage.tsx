@@ -1,12 +1,42 @@
+import { Link } from "react-router";
 import { Heart, Minus, Plus, ShieldCheck, X } from "lucide-react";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
-import products from "../../data/products";
-import CheckoutPage from "./CheckoutPage";
+import { PageEmpty } from "../../components/shared/PageState";
+import { useCart } from "../../stores/cart";
 import OrderSummary from "./OrderSummary";
 
-export default function CartPage({ checkout = false }: { checkout?: boolean }) {
-  if (checkout) return <CheckoutPage />;
+export default function CartPage() {
+  const { lines, setQty, remove } = useCart();
+
+  if (lines.length === 0) {
+    return (
+      <main className="page-section cart-page">
+        <div className="breadcrumb">Home / Shopping cart</div>
+        <div className="shop-title">
+          <div>
+            <p className="eyebrow">YOUR BAG</p>
+            <h1>Shopping cart</h1>
+            <p>Your bag is currently empty.</p>
+          </div>
+          <Badge tone="green">
+            <ShieldCheck size={14} /> Secure checkout
+          </Badge>
+        </div>
+        <PageEmpty
+          title="Your cart is empty"
+          text="Browse the catalog and add products to get started."
+          action={
+            <Link to="/catalog">
+              <Button>Browse catalog</Button>
+            </Link>
+          }
+        />
+      </main>
+    );
+  }
+
+  const reservedMinutes = 20;
 
   return (
     <main className="page-section cart-page">
@@ -15,7 +45,10 @@ export default function CartPage({ checkout = false }: { checkout?: boolean }) {
         <div>
           <p className="eyebrow">YOUR BAG</p>
           <h1>Shopping cart</h1>
-          <p>3 items reserved for the next 20 minutes.</p>
+          <p>
+            {lines.reduce((n, l) => n + l.qty, 0)} items reserved for the next{" "}
+            {reservedMinutes} minutes.
+          </p>
         </div>
         <Badge tone="green">
           <ShieldCheck size={14} /> Secure checkout
@@ -23,29 +56,37 @@ export default function CartPage({ checkout = false }: { checkout?: boolean }) {
       </div>
       <div className="cart-layout">
         <div className="cart-items">
-          {products.slice(0, 3).map((product, index) => (
+          {lines.map(({ product, qty }) => (
             <article className="cart-item" key={product.model}>
-              <img src={product.image} alt="" />
+              <img src={product.image} alt={`${product.brand} ${product.name}`} />
               <div className="cart-product">
                 <small>{product.brand}</small>
-                <h3>{product.name}</h3>
+                <h3>
+                  <Link
+                    to={`/product/${encodeURIComponent(product.model)}`}
+                    style={{ color: "inherit", textDecoration: "none" }}
+                  >
+                    {product.name}
+                  </Link>
+                </h3>
                 <code>{product.model}</code>
-                <span>
-                  {index === 0
-                    ? "16GB / 1TB / Eclipse Gray"
-                    : index === 1
-                      ? "256GB / Natural Titanium"
-                      : "Black"}
-                </span>
                 <div>
                   <Badge tone="green">In stock</Badge>
                   <Badge>2 year warranty</Badge>
                 </div>
               </div>
               <div className="cart-qty">
-                <Minus size={14} />
-                <strong>{index + 1}</strong>
-                <Plus size={14} />
+                <Minus
+                  size={14}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setQty(product.model, qty - 1)}
+                />
+                <strong>{qty}</strong>
+                <Plus
+                  size={14}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setQty(product.model, qty + 1)}
+                />
               </div>
               <div className="cart-price">
                 <strong>{product.price}</strong>
@@ -53,7 +94,7 @@ export default function CartPage({ checkout = false }: { checkout?: boolean }) {
                 <button type="button">
                   <Heart size={14} /> Save
                 </button>
-                <button type="button">
+                <button type="button" onClick={() => remove(product.model)}>
                   <X size={14} /> Remove
                 </button>
               </div>
@@ -71,7 +112,7 @@ export default function CartPage({ checkout = false }: { checkout?: boolean }) {
             </Button>
           </article>
         </div>
-        <OrderSummary />
+        <OrderSummary mode="cart" />
       </div>
     </main>
   );

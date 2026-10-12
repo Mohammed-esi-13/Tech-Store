@@ -23,6 +23,7 @@ export default function ProductsAdmin() {
         title="Products"
         description="Manage your catalog, pricing, variants, and visibility."
         action="Add product"
+        actionTo="/admin/products/new"
       />
       <div className="module-kpis">
         {productKpis.map(([value, label], index) => (

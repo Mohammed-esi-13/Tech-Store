@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router";
 import {
   BadgeCheck,
   ChevronRight,
@@ -10,28 +12,57 @@ import {
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import IconButton from "../../components/ui/IconButton";
+import { PageEmpty } from "../../components/shared/PageState";
+import { getProductById } from "../../services/products";
+import { useCart } from "../../stores/cart";
 import products from "../../data/products";
 
 export default function ProductPage() {
-  const product = products[0];
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { add } = useCart();
+  const [qty, setQty] = useState(1);
+
+  const product = getProductById(id) ?? (id === undefined ? products[0] : undefined);
+
+  if (!product) {
+    return (
+      <main className="page-section product-page">
+        <div className="breadcrumb">
+          <Link to="/">Home</Link> / <Link to="/catalog">Catalog</Link> / Not found
+        </div>
+        <PageEmpty
+          title="Product not found"
+          text="This product may have been removed or the link is incorrect."
+          action={
+            <Button variant="secondary" onClick={() => navigate("/catalog")}>
+              Back to catalog
+            </Button>
+          }
+        />
+      </main>
+    );
+  }
+
+  const gallery = [product.image, products[3]?.image ?? product.image, product.image, products[2]?.image ?? product.image];
 
   return (
     <main className="page-section product-page">
-      <div className="breadcrumb">Home / Laptops / ASUS / ROG Strix G16</div>
+      <div className="breadcrumb">
+        <Link to="/">Home</Link> / <Link to="/catalog">Catalog</Link> / {product.brand} / {product.name}
+      </div>
       <div className="product-detail">
         <div className="gallery">
           <div className="thumbs">
-            {[product.image, products[3].image, product.image, products[2].image].map(
-              (image, index) => (
-                <button type="button" key={index}>
-                  <img src={image} alt="" />
-                </button>
-              ),
-            )}
+            {gallery.map((image, index) => (
+              <button type="button" key={index}>
+                <img src={image} alt="" />
+              </button>
+            ))}
           </div>
           <div className="gallery-main">
-            <img src={product.image} alt="ASUS ROG Strix G16" />
-            <Badge tone="red">-10%</Badge>
+            <img src={product.image} alt={`${product.brand} ${product.name}`} />
+            {product.badge && <Badge tone="red">{product.badge}</Badge>}
             <IconButton label="Add to wishlist">
               <Heart size={19} />
             </IconButton>
@@ -39,13 +70,17 @@ export default function ProductPage() {
         </div>
         <div className="detail-copy">
           <div className="detail-brand">
-            ASUS{" "}
+            {product.brand}{" "}
             <Badge tone="green">
               <BadgeCheck size={13} /> Official
             </Badge>
           </div>
-          <h1>ROG Strix G16 Gaming Laptop</h1>
-          <code>G614JV-N4071W · SKU NT-AS-10482</code>
+          <h1>
+            {product.brand} {product.name}
+          </h1>
+          <code>
+            {product.model} · SKU NT-{product.brand.slice(0, 2).toUpperCase()}-10482
+          </code>
           <div className="rating detail-rating">
             <span className="stars">★★★★★</span>
             <strong>4.8</strong>
@@ -84,21 +119,29 @@ export default function ProductPage() {
           </div>
           <div className="detail-price">
             <span>
-              <del>319 900 DA</del>
-              <strong>289 900 DA</strong>
+              {product.oldPrice && <del>{product.oldPrice}</del>}
+              <strong>{product.price}</strong>
             </span>
             <small>or 12 monthly payments from 24 158 DA</small>
           </div>
           <div className="buy-row">
-            <div className="quantity">
-              <Minus size={15} />
-              <span>1</span>
-              <Plus size={15} />
+            <div className="quantity" aria-label="Quantity">
+              <Minus size={15} onClick={() => setQty((q) => Math.max(1, q - 1))} style={{ cursor: "pointer" }} />
+              <span>{qty}</span>
+              <Plus size={15} onClick={() => setQty((q) => Math.min(9, q + 1))} style={{ cursor: "pointer" }} />
             </div>
-            <Button className="grow">
+            <Button className="grow" onClick={() => add(product, qty)}>
               <ShoppingCart size={18} /> Add to cart
             </Button>
-            <Button variant="secondary">Buy now</Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                add(product, qty);
+                navigate("/checkout");
+              }}
+            >
+              Buy now
+            </Button>
           </div>
           <div className="delivery-card">
             <Truck size={20} />

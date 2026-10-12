@@ -6,11 +6,11 @@ import FlashDealsSection from "./sections/FlashDealsSection";
 import TrustBar from "./sections/TrustBar";
 import Hero from "./Hero";
 
-export default function HomePage({ onShop }: { onShop: () => void }) {
+export default function HomePage() {
   return (
     <main>
       <Hero />
-      <CategorySection onShop={onShop} />
+      <CategorySection />
       <BrandsSection />
       <FlashDealsSection />
       <BuilderBanner />

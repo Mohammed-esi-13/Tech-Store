@@ -1,5 +1,8 @@
+import { Link } from "react-router";
+import type { CSSProperties } from "react";
 import {
   Heart,
+  LayoutDashboard,
   Settings,
   ShieldCheck,
   ShoppingBag,
@@ -10,19 +13,43 @@ import Button from "../../components/ui/Button";
 import MapPinIcon from "../../components/ui/MapPinIcon";
 import products from "../../data/products";
 import { orderRows } from "../../data/admin";
+import { useAuth } from "../../stores/auth";
 
 export default function AccountPage() {
+  const { user, isAdmin, signOut } = useAuth();
+
   return (
     <main className="page-section account-page">
       <div className="account-hero">
-        <div className="profile-avatar">YB</div>
+        <div className="profile-avatar">
+          {user?.name
+            .split(" ")
+            .map((p) => p.slice(0, 1))
+            .join("")
+            .slice(0, 2) ?? "YB"}
+        </div>
         <div>
           <p className="eyebrow">MY ACCOUNT</p>
-          <h1>Welcome back, Yasmine.</h1>
+          <h1>Welcome back, {user?.name.split(" ")[0] ?? "Yasmine"}.</h1>
           <p>Manage orders, addresses, warranties, and saved products.</p>
         </div>
         <Button variant="secondary">Edit profile</Button>
       </div>
+      {isAdmin && (
+        <div
+          className="protection-card"
+          style={{ marginTop: 16, marginBottom: 4 } as CSSProperties}
+        >
+          <LayoutDashboard size={22} />
+          <div>
+            <strong>You are signed in as an administrator</strong>
+            <p>Manage the store from the admin area.</p>
+          </div>
+          <Link to="/admin">
+            <Button size="sm">Open admin</Button>
+          </Link>
+        </div>
+      )}
       <div className="account-layout">
         <aside className="account-nav">
           {[
@@ -46,7 +73,7 @@ export default function AccountPage() {
               </button>
             );
           })}
-          <button type="button" className="logout">
+          <button type="button" className="logout" onClick={signOut}>
             Sign out
           </button>
         </aside>
@@ -95,9 +122,11 @@ export default function AccountPage() {
                 <Button variant="secondary" size="sm">
                   View details
                 </Button>
-                <Button variant="ghost" size="sm">
-                  Get support
-                </Button>
+                <Link to="/support">
+                  <Button variant="ghost" size="sm">
+                    Get support
+                  </Button>
+                </Link>
               </div>
             </article>
           ))}

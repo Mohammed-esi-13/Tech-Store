@@ -1,12 +1,11 @@
+import { useNavigate } from "react-router";
 import { ChevronRight } from "lucide-react";
 import SectionHeading from "../../../components/ui/SectionHeading";
 import { categories } from "../../../data/storefront";
 
-export default function CategorySection({
-  onShop,
-}: {
-  onShop: () => void;
-}) {
+export default function CategorySection() {
+  const navigate = useNavigate();
+
   return (
     <section className="page-section">
       <SectionHeading eyebrow="EXPLORE" title="Shop by category" />
@@ -16,7 +15,7 @@ export default function CategorySection({
             type="button"
             className="category-card"
             key={name}
-            onClick={onShop}
+            onClick={() => navigate("/catalog")}
           >
             <span className="category-icon">
               <Icon size={26} />

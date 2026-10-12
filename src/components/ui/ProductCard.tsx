@@ -1,5 +1,8 @@
+import { Link } from "react-router";
 import { Eye, Heart, ShoppingCart } from "lucide-react";
 import type { Product } from "../../types/catalog";
+import { toProductPath } from "../../services/products";
+import { useCart } from "../../stores/cart";
 import Badge from "./Badge";
 import Button from "./Button";
 import IconButton from "./IconButton";
@@ -14,10 +17,15 @@ export default function ProductCard({
   product,
   compact = false,
 }: ProductCardProps) {
+  const { add } = useCart();
+  const detailsPath = toProductPath(product);
+
   return (
     <article className={cn("product-card", compact && "product-card-compact")}>
       <div className="product-media">
-        <img src={product.image} alt={`${product.brand} ${product.name}`} />
+        <Link to={detailsPath} aria-label={`${product.brand} ${product.name} details`}>
+          <img src={product.image} alt={`${product.brand} ${product.name}`} />
+        </Link>
         <div className="product-badges">
           {product.badge && (
             <Badge tone={product.badge.startsWith("-") ? "red" : "blue"}>
@@ -39,7 +47,14 @@ export default function ProductCard({
           <span>•</span>
           <span>Tech</span>
         </div>
-        <h3>{product.name}</h3>
+        <h3>
+          <Link
+            to={detailsPath}
+            style={{ color: "inherit", textDecoration: "none" }}
+          >
+            {product.name}
+          </Link>
+        </h3>
         <code>{product.model}</code>
         <div className="spec-list">
           {product.specs.map(([Icon, value]) => (
@@ -59,11 +74,16 @@ export default function ProductCard({
             {product.oldPrice && <del>{product.oldPrice}</del>}
             <small>From 24 158 DA/month</small>
           </div>
-          <IconButton label="Quick view">
+          <Link
+            to={detailsPath}
+            className="icon-btn"
+            aria-label={`Quick view ${product.name}`}
+            style={{ textDecoration: "none" }}
+          >
             <Eye size={18} />
-          </IconButton>
+          </Link>
         </div>
-        <Button className="full-width">
+        <Button className="full-width" onClick={() => add(product, 1)}>
           <ShoppingCart size={17} /> Add to cart
         </Button>
       </div>

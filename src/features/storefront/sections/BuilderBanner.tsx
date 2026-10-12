@@ -1,9 +1,12 @@
+import { useNavigate } from "react-router";
 import { ArrowRight } from "lucide-react";
 import Badge from "../../../components/ui/Badge";
 import Button from "../../../components/ui/Button";
 import { pcBuilderIcons } from "../../../data/storefront";
 
 export default function BuilderBanner() {
+  const navigate = useNavigate();
+
   return (
     <section className="builder-banner">
       <div>
@@ -13,7 +16,7 @@ export default function BuilderBanner() {
           Pick components with confidence. Our visual builder checks compatibility
           and power requirements as you go.
         </p>
-        <Button>
+        <Button onClick={() => navigate("/builder")}>
           Start your build <ArrowRight size={17} />
         </Button>
       </div>

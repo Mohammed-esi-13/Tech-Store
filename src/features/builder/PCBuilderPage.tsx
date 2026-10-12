@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router";
 import {
   Box,
   Check,
@@ -9,9 +10,19 @@ import {
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import IconButton from "../../components/ui/IconButton";
+import { getDefaultProduct } from "../../services/products";
+import { useCart } from "../../stores/cart";
 import { pcBuilderParts } from "../../data/storefront";
 
 export default function PCBuilderPage() {
+  const navigate = useNavigate();
+  const { add } = useCart();
+
+  const addBuildToCart = () => {
+    add(getDefaultProduct(), 1);
+    navigate("/cart");
+  };
+
   return (
     <main className="page-section builder-page">
       <div className="builder-title">
@@ -95,7 +106,9 @@ export default function PCBuilderPage() {
             <span>Total</span>
             <strong>392 900 DA</strong>
           </div>
-          <Button className="full-width">Add build to cart</Button>
+          <Button className="full-width" onClick={addBuildToCart}>
+            Add build to cart
+          </Button>
           <Button className="full-width" variant="secondary">
             <Download size={16} /> Save build as PDF
           </Button>

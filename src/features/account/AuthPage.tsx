@@ -1,17 +1,40 @@
+import { Link, Navigate, useLocation, useNavigate } from "react-router";
 import { ArrowRight, Check, Eye, Zap } from "lucide-react";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
+import { useAuth } from "../../stores/auth";
 
 export default function AuthPage() {
+  const { isAuthenticated, isAdmin, signInAsCustomer, signInAsAdmin } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from;
+
+  if (isAuthenticated) {
+    // Already signed in: admins return to where they came from (often /admin),
+    // customers go to their account.
+    return <Navigate to={from ?? (isAdmin ? "/admin" : "/account")} replace />;
+  }
+
+  const continueAsCustomer = () => {
+    signInAsCustomer();
+    navigate(from ?? "/account", { replace: true });
+  };
+
+  const continueAsAdmin = () => {
+    signInAsAdmin();
+    navigate(from ?? "/admin", { replace: true });
+  };
+
   return (
     <main className="auth-page">
       <section className="auth-visual">
-        <div className="brand">
+        <Link to="/" className="brand" style={{ textDecoration: "none", color: "inherit" }}>
           <span className="brand-mark">
             <Zap size={20} fill="currentColor" />
           </span>
           <span>NEOTEK</span>
-        </div>
+        </Link>
         <div>
           <Badge tone="blue">MEMBER BENEFITS</Badge>
           <h1>Better tech starts with a better account.</h1>
@@ -56,17 +79,22 @@ export default function AuthPage() {
             </label>
             <button type="button">Forgot password?</button>
           </div>
-          <Button className="full-width">
+          <Button className="full-width" onClick={continueAsCustomer}>
             Sign in <ArrowRight size={16} />
           </Button>
           <div className="auth-divider">
-            <span>or continue with</span>
+            <span>or continue with a demo role</span>
           </div>
-          <Button variant="secondary" className="full-width">
-            Continue with Google
+          <Button variant="secondary" className="full-width" onClick={continueAsCustomer}>
+            Continue as customer
+          </Button>
+          <div style={{ height: 8 }} />
+          <Button variant="secondary" className="full-width" onClick={continueAsAdmin}>
+            Continue as admin
           </Button>
           <small className="auth-legal">
-            By continuing, you agree to our Terms and Privacy Policy.
+            Demo auth: no backend yet. Customer unlocks account &amp; checkout;
+            admin unlocks the /admin area.
           </small>
         </div>
       </section>

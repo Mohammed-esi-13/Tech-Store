@@ -1,8 +1,13 @@
+import { useNavigate } from "react-router";
 import { ArrowRight, Cpu, Gauge, Sparkles } from "lucide-react";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
+import { DEFAULT_PRODUCT_ID, toProductPath, getProductById } from "../../services/products";
 
 export default function Hero() {
+  const navigate = useNavigate();
+  const featured = getProductById(DEFAULT_PRODUCT_ID);
+
   return (
     <section className="hero">
       <div className="hero-copy">
@@ -20,10 +25,17 @@ export default function Hero() {
           <strong>289 900 DA</strong>
         </div>
         <div className="hero-actions">
-          <Button>
+          <Button onClick={() => navigate("/catalog")}>
             Shop the collection <ArrowRight size={17} />
           </Button>
-          <Button variant="secondary">Explore specs</Button>
+          <Button
+            variant="secondary"
+            onClick={() =>
+              navigate(featured ? toProductPath(featured) : "/catalog")
+            }
+          >
+            Explore specs
+          </Button>
         </div>
       </div>
       <div className="hero-visual">

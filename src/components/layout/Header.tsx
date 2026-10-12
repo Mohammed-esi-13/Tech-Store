@@ -1,30 +1,29 @@
-import {
-  Heart,
-  Menu,
-  Moon,
-  Search,
-  ShoppingBag,
-  Sun,
-  User,
-  Zap,
-} from "lucide-react";
-import Badge from "../ui/Badge";
+import { useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router";
+import { Heart, Moon, Search, ShoppingBag, Sun, User, Zap } from "lucide-react";
 import Button from "../ui/Button";
 import IconButton from "../ui/IconButton";
+import { useCart } from "../../stores/cart";
+import { useTheme } from "../../stores/theme";
 
-type HeaderProps = {
-  onAdmin: () => void;
-  onHome: () => void;
-  dark: boolean;
-  setDark: () => void;
-};
+/**
+ * Customer header. Contains logo, search, theme toggle, wishlist,
+ * cart indicator and account — and nothing else.
+ * The legacy horizontal "Categories" navigation bar was removed;
+ * <BottomNavigation /> is now the single primary navigation.
+ */
+export default function Header() {
+  const navigate = useNavigate();
+  const { dark, toggle } = useTheme();
+  const { count } = useCart();
+  const [query, setQuery] = useState("");
 
-export default function Header({
-  onAdmin,
-  onHome,
-  dark,
-  setDark,
-}: HeaderProps) {
+  const submitSearch = (event: FormEvent) => {
+    event.preventDefault();
+    const q = query.trim();
+    navigate(q ? `/catalog?search=${encodeURIComponent(q)}` : "/catalog");
+  };
+
   return (
     <>
       <div className="announcement">
@@ -32,51 +31,45 @@ export default function Header({
         <span className="announcement-links">Warranty center · Français · DZD</span>
       </div>
       <header className="store-header">
-        <button className="brand" type="button" onClick={onHome}>
+        <Link
+          to="/"
+          className="brand"
+          aria-label="NEOTEK home"
+          style={{ textDecoration: "none" }}
+        >
           <span className="brand-mark">
             <Zap size={20} fill="currentColor" />
           </span>
           <span>NEOTEK</span>
-        </button>
-        <div className="global-search">
+        </Link>
+        <form className="global-search" onSubmit={submitSearch} role="search">
           <Search size={19} />
           <input
             aria-label="Search"
             placeholder="Search products, brands, categories..."
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
           />
           <kbd>⌘ K</kbd>
-        </div>
+        </form>
         <div className="header-actions">
-          <IconButton label="Change theme" onClick={setDark}>
+          <IconButton label="Change theme" onClick={toggle}>
             {dark ? <Sun size={20} /> : <Moon size={20} />}
           </IconButton>
           <IconButton label="Wishlist">
             <Heart size={20} />
           </IconButton>
           <span className="badged-icon">
-            <IconButton label="Cart">
+            <IconButton label="Cart" onClick={() => navigate("/cart")}>
               <ShoppingBag size={20} />
             </IconButton>
-            <i>3</i>
+            {count > 0 && <i>{count > 99 ? "99+" : count}</i>}
           </span>
-          <Button variant="secondary" size="sm" onClick={onAdmin}>
+          <Button variant="secondary" size="sm" onClick={() => navigate("/account")}>
             <User size={17} /> Account
           </Button>
         </div>
       </header>
-      <nav className="category-nav">
-        <Button variant="primary" size="sm">
-          <Menu size={17} /> All categories
-        </Button>
-        <span>Deals</span>
-        <span>Laptops</span>
-        <span>Smartphones</span>
-        <span>Components</span>
-        <span>Gaming</span>
-        <span>Networking</span>
-        <span>PC Builder</span>
-        <Badge tone="blue">NEW</Badge>
-      </nav>
     </>
   );
 }

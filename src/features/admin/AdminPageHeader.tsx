@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { Download, Plus } from "lucide-react";
 import Button from "../../components/ui/Button";
 
@@ -6,6 +7,8 @@ type AdminPageHeaderProps = {
   title: string;
   description: string;
   action?: string;
+  /** When provided, the primary action navigates instead of being a dead button. */
+  actionTo?: string;
 };
 
 export default function AdminPageHeader({
@@ -13,6 +16,7 @@ export default function AdminPageHeader({
   title,
   description,
   action = "Add new",
+  actionTo,
 }: AdminPageHeaderProps) {
   return (
     <div className="admin-title">
@@ -25,9 +29,17 @@ export default function AdminPageHeader({
         <Button variant="secondary">
           <Download size={16} /> Export
         </Button>
-        <Button>
-          <Plus size={16} /> {action}
-        </Button>
+        {actionTo ? (
+          <Link to={actionTo}>
+            <Button>
+              <Plus size={16} /> {action}
+            </Button>
+          </Link>
+        ) : (
+          <Button>
+            <Plus size={16} /> {action}
+          </Button>
+        )}
       </div>
     </div>
   );

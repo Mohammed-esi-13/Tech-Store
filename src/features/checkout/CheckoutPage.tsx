@@ -6,9 +6,13 @@ import {
 } from "lucide-react";
 import { checkoutSteps, paymentMethods } from "../../data/checkout";
 import products from "../../data/products";
+import { useCart } from "../../stores/cart";
 import OrderSummary from "./OrderSummary";
 
 export default function CheckoutPage() {
+  const { lines } = useCart();
+  const summaryLines = lines.length > 0 ? lines.map((l) => l.product) : products.slice(0, 2);
+
   return (
     <main className="page-section checkout-page">
       <div className="checkout-header">
@@ -135,11 +139,11 @@ export default function CheckoutPage() {
           </section>
         </div>
         <aside>
-          <OrderSummary />
+          <OrderSummary mode="checkout" />
           <div className="mini-cart-summary">
-            {products.slice(0, 2).map((product) => (
+            {summaryLines.map((product) => (
               <div key={product.model}>
-                <img src={product.image} alt="" />
+                <img src={product.image} alt={product.name} />
                 <span>
                   <strong>{product.name}</strong>
                   <small>Qty 1 · {product.model}</small>
