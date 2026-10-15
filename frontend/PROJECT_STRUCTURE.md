@@ -1,5 +1,8 @@
 # PROJECT_STRUCTURE.md — NEOTEK Tech-Store frontend
 
+> Monorepo note: this file lives in `frontend/` — all `src/...` paths below are
+> relative to `frontend/`. Backend design lives in `../backend/DataBase.json`.
+
 > Stack: Vite + React 19 + `react-router` v7 + Tailwind v4 + `lucide-react`.
 > Styling lives in `src/index.css` + `src/styles/tokens.css` (design tokens, dark mode via `.app.dark`).
 > Path alias: `@/*` → `src/*`.

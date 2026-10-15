@@ -1,0 +1,462 @@
+{
+  "database": "neotek_tech_store",
+  "engine": "postgres",
+  "currency": "DZD",
+  "currencyStorage": "INTEGER in DA (no centimes, e.g. 289900 = '289 900 DA')",
+  "conventions": {
+    "naming": "snake_case, plural table names",
+    "primaryKey": "BIGSERIAL id except composite keys (wishlists) and natural keys (wilayas.code, store_settings.key)",
+    "foreignKey": "{table_singular}_id -> {table}.id, ON UPDATE CASCADE",
+    "timestamps": "created_at / updated_at TIMESTAMPTZ DEFAULT now()",
+    "softDelete": "is_active / status enum, no physical delete for orders, rma, movements"
+  },
+  "enums": {
+    "user_role": ["customer", "admin", "manager", "support", "technician"],
+    "customer_segment": ["VIP", "Regular"],
+    "product_status": ["draft", "active", "hidden", "archived"],
+    "order_status": ["new", "confirmed", "preparing", "shipped", "delivered", "cancelled", "returned"],
+    "payment_code": ["cib_edahabia", "cod", "bank_transfer"],
+    "payment_status": ["pending", "paid", "failed", "held_48h", "refunded"],
+    "delivery_code": ["express", "store_pickup", "standard_wilaya"],
+    "rma_status": ["received", "diagnosing", "waiting_parts", "repaired", "replaced", "refunded", "resolved", "rejected"],
+    "movement_reason": ["purchase_received", "sale", "return", "adjust_add", "adjust_remove", "damage", "transfer", "initial"],
+    "build_part_type": ["processor", "motherboard", "memory", "graphics", "storage", "psu", "case", "cooler", "other"],
+    "build_status": ["draft", "saved", "converted_to_cart", "ordered"]
+  },
+  "tables": [
+    {
+      "name": "users",
+      "description": "Customers + admins. Source: src/stores/auth.tsx DEMO_USERS, src/features/admin/CustomersAdmin.tsx, AccountPage.tsx",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "full_name", "type": "VARCHAR(120)", "nullable": false, "example": "Yasmine Benali" },
+        { "name": "email", "type": "VARCHAR(160)", "unique": true, "nullable": false, "example": "yasmine.b@email.dz" },
+        { "name": "phone", "type": "VARCHAR(30)", "nullable": true, "example": "+213 555 24 18 90" },
+        { "name": "password_hash", "type": "TEXT", "nullable": true, "description": "NULL for demo OAuth-less accounts" },
+        { "name": "role", "type": "user_role", "default": "customer" },
+        { "name": "segment", "type": "customer_segment", "default": "Regular", "description": "VIP / Regular badge in CustomersAdmin" },
+        { "name": "is_active", "type": "BOOLEAN", "default": true },
+        { "name": "created_at", "type": "TIMESTAMPTZ", "default": "now()" },
+        { "name": "updated_at", "type": "TIMESTAMPTZ", "default": "now()" }
+      ]
+    },
+    {
+      "name": "wilayas",
+      "description": "58 Algerian wilayas. Source: CheckoutPage wilaya select, OrdersAdmin wilaya column, Settings shipping & wilayas",
+      "columns": [
+        { "name": "code", "type": "SMALLINT", "pk": true, "example": 16, "description": "1..58, e.g. 16=Alger, 31=Oran" },
+        { "name": "name", "type": "VARCHAR(60)", "unique": true, "nullable": false, "example": "Alger" },
+        { "name": "delivery_fee_dzd", "type": "INTEGER", "default": 0 },
+        { "name": "eta_days", "type": "SMALLINT", "default": 2 },
+        { "name": "is_active", "type": "BOOLEAN", "default": true }
+      ]
+    },
+    {
+      "name": "addresses",
+      "description": "Customer shipping/billing addresses. Source: CheckoutPage shipping address form, AccountPage Addresses tab",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "user_id", "type": "BIGINT", "nullable": false, "ref": "users.id" },
+        { "name": "label", "type": "VARCHAR(60)", "default": "Home" },
+        { "name": "first_name", "type": "VARCHAR(60)", "nullable": false },
+        { "name": "last_name", "type": "VARCHAR(60)", "nullable": false },
+        { "name": "phone", "type": "VARCHAR(30)" },
+        { "name": "street", "type": "VARCHAR(200)", "example": "12 Rue Didouche Mourad" },
+        { "name": "city_commune", "type": "VARCHAR(100)", "example": "Alger Centre" },
+        { "name": "wilaya_code", "type": "SMALLINT", "ref": "wilayas.code" },
+        { "name": "postal_code", "type": "VARCHAR(10)", "example": "16000" },
+        { "name": "is_default_shipping", "type": "BOOLEAN", "default": false },
+        { "name": "is_default_billing", "type": "BOOLEAN", "default": false }
+      ]
+    },
+    {
+      "name": "brands",
+      "description": "Manufacturers. Source: src/data/admin.ts adminBrands + homeBrands, BrandsAdmin.tsx, Product.brand",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "name", "type": "VARCHAR(60)", "unique": true, "nullable": false, "example": "ASUS" },
+        { "name": "slug", "type": "VARCHAR(60)", "unique": true, "nullable": false },
+        { "name": "logo_url", "type": "TEXT", "nullable": true },
+        { "name": "story", "type": "TEXT", "nullable": true },
+        { "name": "is_active", "type": "BOOLEAN", "default": true },
+        { "name": "sort_order", "type": "INTEGER", "default": 0 }
+      ]
+    },
+    {
+      "name": "categories",
+      "description": "Hierarchical catalog tree. Source: src/data/admin.ts categoryTree, CategoriesAdmin.tsx, src/data/storefront.ts categories",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "parent_id", "type": "BIGINT", "nullable": true, "ref": "categories.id", "description": "NULL=root (Computers, PC Components, Smartphones)" },
+        { "name": "name", "type": "VARCHAR(100)", "nullable": false, "example": "Gaming Laptops" },
+        { "name": "slug", "type": "VARCHAR(120)", "unique": true, "nullable": false, "example": "gaming-laptops" },
+        { "name": "product_count_cached", "type": "INTEGER", "default": 0, "description": "Denormalized, e.g. Laptops=284" },
+        { "name": "image_url", "type": "TEXT", "nullable": true },
+        { "name": "spec_template_id", "type": "BIGINT", "nullable": true, "ref": "spec_templates.id" },
+        { "name": "sort_order", "type": "INTEGER", "default": 0 },
+        { "name": "is_active", "type": "BOOLEAN", "default": true }
+      ]
+    },
+    {
+      "name": "spec_templates",
+      "description": "Category-specific spec forms. Source: CategoriesAdmin 'Specification template', SettingsAdmin 'Spec templates', ProductEditorPreview 'Template: Gaming laptop'",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "name", "type": "VARCHAR(100)", "unique": true, "nullable": false, "example": "Laptop specifications" },
+        { "name": "description", "type": "TEXT", "nullable": true }
+      ]
+    },
+    {
+      "name": "spec_template_fields",
+      "description": "Fields inside a spec template, e.g. Processor/Memory/Storage/Graphics/Display",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "template_id", "type": "BIGINT", "nullable": false, "ref": "spec_templates.id" },
+        { "name": "field_key", "type": "VARCHAR(80)", "nullable": false, "example": "Processor" },
+        { "name": "field_type", "type": "VARCHAR(20)", "default": "text" },
+        { "name": "is_key_spec", "type": "BOOLEAN", "default": false },
+        { "name": "is_required", "type": "BOOLEAN", "default": false },
+        { "name": "sort_order", "type": "INTEGER", "default": 0 }
+      ]
+    },
+    {
+      "name": "products",
+      "description": "Base catalog entry. Source: src/types/catalog.ts Product, src/data/products.ts, ProductsAdmin table, ProductEditorPage",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "brand_id", "type": "BIGINT", "nullable": false, "ref": "brands.id" },
+        { "name": "category_id", "type": "BIGINT", "nullable": false, "ref": "categories.id" },
+        { "name": "name", "type": "VARCHAR(160)", "nullable": false, "example": "ROG Strix G16" },
+        { "name": "model_number", "type": "VARCHAR(80)", "unique": true, "nullable": false, "example": "G614JV-N4071W" },
+        { "name": "sku_base", "type": "VARCHAR(40)", "unique": true, "example": "NT-AS-10482" },
+        { "name": "slug", "type": "VARCHAR(180)", "unique": true },
+        { "name": "description", "type": "TEXT", "nullable": true },
+        { "name": "status", "type": "product_status", "default": "active" },
+        { "name": "base_price_dzd", "type": "INTEGER", "nullable": false, "example": 289900 },
+        { "name": "base_old_price_dzd", "type": "INTEGER", "nullable": true },
+        { "name": "base_cost_dzd", "type": "INTEGER", "nullable": true, "example": 214000 },
+        { "name": "badge", "type": "VARCHAR(30)", "nullable": true, "example": "-10% | New | Open Box" },
+        { "name": "cover_image_url", "type": "TEXT" },
+        { "name": "warranty_months", "type": "SMALLINT", "default": 24 },
+        { "name": "is_featured", "type": "BOOLEAN", "default": false },
+        { "name": "created_by", "type": "BIGINT", "nullable": true, "ref": "users.id" },
+        { "name": "created_at", "type": "TIMESTAMPTZ", "default": "now()" },
+        { "name": "updated_at", "type": "TIMESTAMPTZ", "default": "now()" }
+      ]
+    },
+    {
+      "name": "product_media",
+      "description": "Gallery. First image = cover. Source: ProductEditorPreview Media upload-grid",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "product_id", "type": "BIGINT", "nullable": false, "ref": "products.id" },
+        { "name": "image_url", "type": "TEXT", "nullable": false },
+        { "name": "sort_order", "type": "INTEGER", "default": 0 },
+        { "name": "is_cover", "type": "BOOLEAN", "default": false }
+      ]
+    },
+    {
+      "name": "product_specs",
+      "description": "Dynamic key/value specs. Source: Product.specs [icon,label], productEditorSpecs, comparisonRows",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "product_id", "type": "BIGINT", "nullable": false, "ref": "products.id" },
+        { "name": "spec_key", "type": "VARCHAR(80)", "nullable": false, "example": "Processor" },
+        { "name": "spec_value", "type": "VARCHAR(200)", "nullable": false, "example": "Intel Core i7-13650HX" },
+        { "name": "is_key_spec", "type": "BOOLEAN", "default": false },
+        { "name": "sort_order", "type": "INTEGER", "default": 0 }
+      ]
+    },
+    {
+      "name": "product_variants",
+      "description": "RAM x Storage x Color matrix. Source: productEditorVariants, InventoryAdmin 'Stock by variant'",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "product_id", "type": "BIGINT", "nullable": false, "ref": "products.id" },
+        { "name": "sku", "type": "VARCHAR(60)", "unique": true, "nullable": false, "example": "G614-16-1T" },
+        { "name": "label", "type": "VARCHAR(160)", "nullable": false, "example": "16GB / 1TB / Eclipse Gray" },
+        { "name": "attributes", "type": "JSONB", "default": "{}" },
+        { "name": "price_dzd", "type": "INTEGER", "nullable": false },
+        { "name": "cost_dzd", "type": "INTEGER", "nullable": true },
+        { "name": "barcode", "type": "VARCHAR(40)", "nullable": true },
+        { "name": "is_active", "type": "BOOLEAN", "default": true }
+      ]
+    },
+    {
+      "name": "suppliers",
+      "description": "Purchase sources. Source: InventoryAdmin Supplier column (TechData DZ, Global IT)",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "name", "type": "VARCHAR(100)", "unique": true, "nullable": false },
+        { "name": "contact_name", "type": "VARCHAR(100)", "nullable": true },
+        { "name": "phone", "type": "VARCHAR(30)", "nullable": true },
+        { "name": "email", "type": "VARCHAR(160)", "nullable": true }
+      ]
+    },
+    {
+      "name": "inventory_levels",
+      "description": "One row per variant (1-1). On hand / reserved / available / threshold. Source: InventoryAdmin table + dashboard stock alerts",
+      "columns": [
+        { "name": "variant_id", "type": "BIGINT", "pk": true, "ref": "product_variants.id" },
+        { "name": "on_hand", "type": "INTEGER", "default": 0 },
+        { "name": "reserved", "type": "INTEGER", "default": 0 },
+        { "name": "threshold", "type": "INTEGER", "default": 5 },
+        { "name": "supplier_id", "type": "BIGINT", "nullable": true, "ref": "suppliers.id" },
+        { "name": "updated_at", "type": "TIMESTAMPTZ", "default": "now()" }
+      ]
+    },
+    {
+      "name": "stock_movements",
+      "description": "Every Add/Remove audit log. Source: InventoryAdmin Adjust stock dialog (reason, reference PO-2025-0618, qty 12 -> 15)",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "variant_id", "type": "BIGINT", "nullable": false, "ref": "product_variants.id" },
+        { "name": "delta", "type": "INTEGER", "nullable": false, "example": 12 },
+        { "name": "reason", "type": "movement_reason", "nullable": false },
+        { "name": "reference", "type": "VARCHAR(60)", "nullable": true, "example": "PO-2025-0618" },
+        { "name": "note", "type": "TEXT", "nullable": true },
+        { "name": "created_by", "type": "BIGINT", "nullable": true, "ref": "users.id" },
+        { "name": "created_at", "type": "TIMESTAMPTZ", "default": "now()" }
+      ]
+    },
+    {
+      "name": "delivery_methods",
+      "description": "Source: CheckoutPage Delivery method (Express delivery / Store pickup), data/checkout.ts",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "code", "type": "delivery_code", "unique": true },
+        { "name": "name", "type": "VARCHAR(80)", "nullable": false },
+        { "name": "description", "type": "VARCHAR(200)" },
+        { "name": "fee_dzd", "type": "INTEGER", "default": 0 },
+        { "name": "eta_text", "type": "VARCHAR(80)", "example": "Tomorrow, 9:00-18:00" }
+      ]
+    },
+    {
+      "name": "payment_methods",
+      "description": "Source: data/checkout.ts paymentMethods (CIB/Edahabia, COD, Bank transfer) + OrdersAdmin Payment column",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "code", "type": "payment_code", "unique": true },
+        { "name": "name", "type": "VARCHAR(100)", "nullable": false },
+        { "name": "description", "type": "VARCHAR(200)" },
+        { "name": "is_active", "type": "BOOLEAN", "default": true }
+      ]
+    },
+    {
+      "name": "carts",
+      "description": "One active cart per user or guest session. Source: src/stores/cart.tsx (localStorage neotek-cart)",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "user_id", "type": "BIGINT", "nullable": true, "unique": true, "ref": "users.id" },
+        { "name": "session_token", "type": "VARCHAR(64)", "nullable": true, "unique": true },
+        { "name": "reserved_until", "type": "TIMESTAMPTZ", "nullable": true, "description": "CartPage: reserved for 20 minutes" },
+        { "name": "created_at", "type": "TIMESTAMPTZ", "default": "now()" },
+        { "name": "updated_at", "type": "TIMESTAMPTZ", "default": "now()" }
+      ]
+    },
+    {
+      "name": "cart_items",
+      "description": "CartLine {product,qty}. Source: cart.tsx CartLine, CartPage qty +/-",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "cart_id", "type": "BIGINT", "nullable": false, "ref": "carts.id" },
+        { "name": "variant_id", "type": "BIGINT", "nullable": false, "ref": "product_variants.id" },
+        { "name": "qty", "type": "INTEGER", "nullable": false },
+        { "name": "unit_price_dzd", "type": "INTEGER", "description": "Price snapshot at add time" },
+        { "name": "added_at", "type": "TIMESTAMPTZ", "default": "now()" }
+      ]
+    },
+    {
+      "name": "wishlists",
+      "description": "Save for later. Source: Header wishlist icon, CartPage Save button, AccountPage Wishlist tab. Junction N-M users<->products",
+      "columns": [
+        { "name": "user_id", "type": "BIGINT", "pk": true, "ref": "users.id" },
+        { "name": "product_id", "type": "BIGINT", "pk": true, "ref": "products.id" },
+        { "name": "added_at", "type": "TIMESTAMPTZ", "default": "now()" }
+      ]
+    },
+    {
+      "name": "orders",
+      "description": "Source: src/data/admin.ts orderRows + dashboardOrderRows, OrdersAdmin inspector, AccountPage Recent orders, CheckoutPage + OrderSummary",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "order_number", "type": "VARCHAR(20)", "unique": true, "nullable": false, "example": "NT-10842" },
+        { "name": "user_id", "type": "BIGINT", "nullable": false, "ref": "users.id" },
+        { "name": "status", "type": "order_status", "default": "new" },
+        { "name": "subtotal_dzd", "type": "INTEGER", "nullable": false },
+        { "name": "delivery_fee_dzd", "type": "INTEGER", "default": 0 },
+        { "name": "total_dzd", "type": "INTEGER", "nullable": false },
+        { "name": "currency", "type": "VARCHAR(3)", "default": "DZD" },
+        { "name": "payment_method_id", "type": "BIGINT", "ref": "payment_methods.id" },
+        { "name": "payment_status", "type": "payment_status", "default": "pending" },
+        { "name": "delivery_method_id", "type": "BIGINT", "ref": "delivery_methods.id" },
+        { "name": "shipping_address_id", "type": "BIGINT", "ref": "addresses.id" },
+        { "name": "wilaya_code", "type": "SMALLINT", "ref": "wilayas.code", "example": "Alger/Oran/Setif/Blida/Constantine" },
+        { "name": "notes", "type": "TEXT", "nullable": true },
+        { "name": "placed_at", "type": "TIMESTAMPTZ", "default": "now()" },
+        { "name": "confirmed_at", "type": "TIMESTAMPTZ", "nullable": true },
+        { "name": "shipped_at", "type": "TIMESTAMPTZ", "nullable": true },
+        { "name": "delivered_at", "type": "TIMESTAMPTZ", "nullable": true }
+      ]
+    },
+    {
+      "name": "order_items",
+      "description": "Order lines with price snapshots. Source: OrdersAdmin order-line inspector (Qty, variant 16GB/1TB)",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "order_id", "type": "BIGINT", "nullable": false, "ref": "orders.id" },
+        { "name": "variant_id", "type": "BIGINT", "nullable": true, "ref": "product_variants.id", "description": "SET NULL on variant delete, keep snapshots" },
+        { "name": "product_name_snapshot", "type": "VARCHAR(160)", "nullable": false },
+        { "name": "variant_label_snapshot", "type": "VARCHAR(160)" },
+        { "name": "sku_snapshot", "type": "VARCHAR(60)" },
+        { "name": "qty", "type": "INTEGER", "nullable": false },
+        { "name": "unit_price_dzd", "type": "INTEGER", "nullable": false },
+        { "name": "line_total_dzd", "type": "INTEGER", "nullable": false }
+      ]
+    },
+    {
+      "name": "order_status_history",
+      "description": "Timeline. Source: OrdersAdmin timeline-mini (received/confirmed/preparing/shipped), AccountPage timeline",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "order_id", "type": "BIGINT", "nullable": false, "ref": "orders.id" },
+        { "name": "from_status", "type": "order_status", "nullable": true },
+        { "name": "to_status", "type": "order_status", "nullable": false },
+        { "name": "changed_by", "type": "BIGINT", "nullable": true, "ref": "users.id" },
+        { "name": "comment", "type": "TEXT", "nullable": true },
+        { "name": "created_at", "type": "TIMESTAMPTZ", "default": "now()" }
+      ]
+    },
+    {
+      "name": "rma_requests",
+      "description": "Warranty & returns. Source: ReturnsAdmin.tsx table (Request/Customer/Product/Serial/Issue/Status) + rma detail",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "rma_number", "type": "VARCHAR(20)", "unique": true, "nullable": false, "example": "RMA-2048" },
+        { "name": "order_id", "type": "BIGINT", "nullable": true, "ref": "orders.id" },
+        { "name": "order_item_id", "type": "BIGINT", "nullable": true, "ref": "order_items.id" },
+        { "name": "user_id", "type": "BIGINT", "nullable": false, "ref": "users.id" },
+        { "name": "variant_id", "type": "BIGINT", "nullable": false, "ref": "product_variants.id" },
+        { "name": "serial_imei", "type": "VARCHAR(60)", "example": "SN8K2048A91X" },
+        { "name": "issue_title", "type": "VARCHAR(120)", "example": "Display flicker / Battery issue" },
+        { "name": "issue_description", "type": "TEXT" },
+        { "name": "status", "type": "rma_status", "default": "received" },
+        { "name": "warranty_valid_until", "type": "DATE", "nullable": true },
+        { "name": "technician_note", "type": "TEXT", "nullable": true },
+        { "name": "created_at", "type": "TIMESTAMPTZ", "default": "now()" },
+        { "name": "resolved_at", "type": "TIMESTAMPTZ", "nullable": true }
+      ]
+    },
+    {
+      "name": "rma_status_history",
+      "description": "RMA steps: Received > Diagnosing > Repaired > Replaced > Refunded. Source: returnStages",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "rma_id", "type": "BIGINT", "nullable": false, "ref": "rma_requests.id" },
+        { "name": "from_status", "type": "rma_status", "nullable": true },
+        { "name": "to_status", "type": "rma_status", "nullable": false },
+        { "name": "changed_by", "type": "BIGINT", "nullable": true, "ref": "users.id" },
+        { "name": "note", "type": "TEXT", "nullable": true },
+        { "name": "created_at", "type": "TIMESTAMPTZ", "default": "now()" }
+      ]
+    },
+    {
+      "name": "pc_builds",
+      "description": "Saved PC configurations. Source: PCBuilderPage.tsx build summary (574W/850W, 392 900 DA)",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "user_id", "type": "BIGINT", "nullable": true, "ref": "users.id" },
+        { "name": "name", "type": "VARCHAR(100)", "default": "My Build" },
+        { "name": "total_dzd", "type": "INTEGER", "default": 0 },
+        { "name": "wattage_estimated", "type": "INTEGER", "example": 574 },
+        { "name": "wattage_psu", "type": "INTEGER", "example": 850 },
+        { "name": "is_compatible", "type": "BOOLEAN", "default": true },
+        { "name": "status", "type": "build_status", "default": "draft" },
+        { "name": "created_at", "type": "TIMESTAMPTZ", "default": "now()" }
+      ]
+    },
+    {
+      "name": "pc_build_items",
+      "description": "Parts in a build. Source: pcBuilderParts (Processor/Motherboard/Memory/Graphics/Storage/PSU + Case)",
+      "columns": [
+        { "name": "id", "type": "BIGSERIAL", "pk": true },
+        { "name": "build_id", "type": "BIGINT", "nullable": false, "ref": "pc_builds.id" },
+        { "name": "part_type", "type": "build_part_type", "nullable": false },
+        { "name": "variant_id", "type": "BIGINT", "nullable": true, "ref": "product_variants.id" },
+        { "name": "custom_name", "type": "VARCHAR(160)", "example": "Intel Core i7-14700K" },
+        { "name": "custom_price_dzd", "type": "INTEGER" },
+        { "name": "qty", "type": "INTEGER", "default": 1 },
+        { "name": "is_compatible", "type": "BOOLEAN", "default": true },
+        { "name": "sort_order", "type": "INTEGER", "default": 0 }
+      ]
+    },
+    {
+      "name": "store_settings",
+      "description": "Key-value config. Source: SettingsAdmin.tsx (store info, shipping, payment, spec templates, users&roles, notifications, language&currency)",
+      "columns": [
+        { "name": "key", "type": "TEXT", "pk": true, "example": "store.name / regional.currency / shipping.wilayas" },
+        { "name": "value", "type": "JSONB", "nullable": false },
+        { "name": "description", "type": "TEXT", "nullable": true },
+        { "name": "updated_at", "type": "TIMESTAMPTZ", "default": "now()" }
+      ]
+    }
+  ],
+  "relations": [
+    { "from": "addresses.user_id", "to": "users.id", "cardinality": "N-1", "onDelete": "CASCADE", "label": "user 1—N addresses" },
+    { "from": "addresses.wilaya_code", "to": "wilayas.code", "cardinality": "N-1", "onDelete": "RESTRICT", "label": "wilaya 1—N addresses" },
+    { "from": "categories.parent_id", "to": "categories.id", "cardinality": "N-1 self", "onDelete": "RESTRICT", "label": "parent 1—N children (Computers > Laptops > Gaming Laptops)" },
+    { "from": "categories.spec_template_id", "to": "spec_templates.id", "cardinality": "N-1", "onDelete": "SET NULL", "label": "template 1—N categories" },
+    { "from": "spec_template_fields.template_id", "to": "spec_templates.id", "cardinality": "N-1", "onDelete": "CASCADE", "label": "template 1—N fields" },
+    { "from": "products.brand_id", "to": "brands.id", "cardinality": "N-1", "onDelete": "RESTRICT", "label": "brand 1—N products" },
+    { "from": "products.category_id", "to": "categories.id", "cardinality": "N-1", "onDelete": "RESTRICT", "label": "category 1—N products" },
+    { "from": "products.created_by", "to": "users.id", "cardinality": "N-1", "onDelete": "SET NULL", "label": "admin 1—N created products" },
+    { "from": "product_media.product_id", "to": "products.id", "cardinality": "N-1", "onDelete": "CASCADE", "label": "product 1—N images" },
+    { "from": "product_specs.product_id", "to": "products.id", "cardinality": "N-1", "onDelete": "CASCADE", "label": "product 1—N specs" },
+    { "from": "product_variants.product_id", "to": "products.id", "cardinality": "N-1", "onDelete": "CASCADE", "label": "product 1—N variants (RAM x Storage x Color)" },
+    { "from": "inventory_levels.variant_id", "to": "product_variants.id", "cardinality": "1-1", "onDelete": "CASCADE", "label": "variant 1—1 inventory row" },
+    { "from": "inventory_levels.supplier_id", "to": "suppliers.id", "cardinality": "N-1", "onDelete": "SET NULL", "label": "supplier 1—N inventory rows" },
+    { "from": "stock_movements.variant_id", "to": "product_variants.id", "cardinality": "N-1", "onDelete": "RESTRICT", "label": "variant 1—N movements (audit, never delete)" },
+    { "from": "stock_movements.created_by", "to": "users.id", "cardinality": "N-1", "onDelete": "SET NULL", "label": "admin 1—N stock adjustments" },
+    { "from": "carts.user_id", "to": "users.id", "cardinality": "1-1 (one active cart per user)", "onDelete": "CASCADE", "label": "user 1—1 cart" },
+    { "from": "cart_items.cart_id", "to": "carts.id", "cardinality": "N-1", "onDelete": "CASCADE", "label": "cart 1—N items" },
+    { "from": "cart_items.variant_id", "to": "product_variants.id", "cardinality": "N-1", "onDelete": "CASCADE", "label": "variant 1—N cart lines" },
+    { "from": "wishlists.user_id", "to": "users.id", "cardinality": "N-M via wishlists", "onDelete": "CASCADE", "label": "user N—M products (wishlist)" },
+    { "from": "wishlists.product_id", "to": "products.id", "cardinality": "N-M via wishlists", "onDelete": "CASCADE", "label": "product N—M users (wishlisted by)" },
+    { "from": "orders.user_id", "to": "users.id", "cardinality": "N-1", "onDelete": "RESTRICT", "label": "customer 1—N orders" },
+    { "from": "orders.payment_method_id", "to": "payment_methods.id", "cardinality": "N-1", "onDelete": "RESTRICT", "label": "payment method 1—N orders" },
+    { "from": "orders.delivery_method_id", "to": "delivery_methods.id", "cardinality": "N-1", "onDelete": "RESTRICT", "label": "delivery method 1—N orders" },
+    { "from": "orders.shipping_address_id", "to": "addresses.id", "cardinality": "N-1", "onDelete": "SET NULL", "label": "address 1—N orders (snapshot kept)" },
+    { "from": "orders.wilaya_code", "to": "wilayas.code", "cardinality": "N-1", "onDelete": "RESTRICT", "label": "wilaya 1—N orders" },
+    { "from": "order_items.order_id", "to": "orders.id", "cardinality": "N-1", "onDelete": "CASCADE", "label": "order 1—N items" },
+    { "from": "order_items.variant_id", "to": "product_variants.id", "cardinality": "N-1", "onDelete": "SET NULL", "label": "variant 1—N order lines (keep snapshot if variant deleted)" },
+    { "from": "order_status_history.order_id", "to": "orders.id", "cardinality": "N-1", "onDelete": "CASCADE", "label": "order 1—N status events" },
+    { "from": "order_status_history.changed_by", "to": "users.id", "cardinality": "N-1", "onDelete": "SET NULL", "label": "admin 1—N order transitions" },
+    { "from": "rma_requests.order_id", "to": "orders.id", "cardinality": "N-1", "onDelete": "SET NULL", "label": "order 1—N RMA requests" },
+    { "from": "rma_requests.order_item_id", "to": "order_items.id", "cardinality": "N-1", "onDelete": "SET NULL", "label": "order item 1—N RMA requests" },
+    { "from": "rma_requests.user_id", "to": "users.id", "cardinality": "N-1", "onDelete": "RESTRICT", "label": "customer 1—N RMA requests" },
+    { "from": "rma_requests.variant_id", "to": "product_variants.id", "cardinality": "N-1", "onDelete": "RESTRICT", "label": "variant 1—N RMA requests" },
+    { "from": "rma_status_history.rma_id", "to": "rma_requests.id", "cardinality": "N-1", "onDelete": "CASCADE", "label": "RMA 1—N status events" },
+    { "from": "pc_builds.user_id", "to": "users.id", "cardinality": "N-1", "onDelete": "SET NULL", "label": "user 1—N saved builds" },
+    { "from": "pc_build_items.build_id", "to": "pc_builds.id", "cardinality": "N-1", "onDelete": "CASCADE", "label": "build 1—N parts" },
+    { "from": "pc_build_items.variant_id", "to": "product_variants.id", "cardinality": "N-1", "onDelete": "SET NULL", "label": "variant 1—N build usages" }
+  ],
+  "keyFlows": {
+    "catalog": "brands + categories (+spec_templates) -> products -> product_media + product_specs + product_variants -> inventory_levels (+suppliers)",
+    "purchase": "carts -> cart_items (variant_id, qty) -> orders (+addresses, wilayas, delivery_methods, payment_methods) -> order_items (snapshots) -> order_status_history",
+    "stock": "product_variants 1-1 inventory_levels; every change writes stock_movements(delta, reason, reference)",
+    "afterSales": "orders -> order_items -> rma_requests (+serial_imei) -> rma_status_history",
+    "builder": "pc_builds -> pc_build_items (part_type, variant_id or custom_name/price)"
+  },
+  "indexes": [
+    "UNIQUE users.email",
+    "UNIQUE brands.slug, categories.slug, products.slug, products.model_number, products.sku_base",
+    "UNIQUE product_variants.sku",
+    "UNIQUE (product_specs.product_id, spec_key)",
+    "UNIQUE (cart_items.cart_id, variant_id)",
+    "UNIQUE orders.order_number, rma_requests.rma_number",
+    "INDEX products(brand_id), products(category_id), products(status)",
+    "INDEX product_variants(product_id), inventory_levels(supplier_id)",
+    "INDEX orders(user_id), orders(status), orders(placed_at), order_items(order_id)",
+    "INDEX rma_requests(user_id), rma_requests(status), rma_requests(variant_id)"
+  ]
+}

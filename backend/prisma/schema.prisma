@@ -1,0 +1,471 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+///: model definitions :---------------------------------
+model User {
+  id         Int              @id @default(autoincrement())
+  fullName   String
+  email      String           @unique
+  phone      String           @unique
+  password   String
+  role       user_role        @default(customer)
+  segment    customer_segment @default(Regular)
+  is_active  Boolean          @default(true)
+  created_at DateTime         @default(now())
+  updated_at DateTime         @updatedAt
+
+  orders               order[]
+  addresses            addresse[]
+  cart                 cart[]
+  pc_builds            pc_build[]
+  order_status_history order_status_history[]
+  rma_requests         rma_request[]
+  rmaStatusHistories   rma_status_history[]
+  products             product[]
+  inventoryMovements   inventory_movement[]
+}
+
+model wilaya {
+  code             Int        @id
+  name             String
+  delivery_fee_dzd Float
+  eta_days         Int
+  is_active        Boolean    @default(true)
+  addresses        addresse[]
+  orders           order[]
+}
+
+model addresse {
+  id                  Int     @id @default(autoincrement())
+  user_id             Int
+  label               String
+  first_name          String
+  last_name           String
+  phone               String
+  street              String
+  city_commune        String
+  wilaya_code         Int
+  postal_code         String
+  is_default_shipping Boolean @default(false)
+  is_default_billing  Boolean @default(false)
+  user                User    @relation(fields: [user_id], references: [id])
+  wilaya              wilaya  @relation(fields: [wilaya_code], references: [code])
+  order               order[]
+}
+
+model store_settings {
+  key         String   @id
+  value       String
+  description String?
+  updated_at  DateTime @updatedAt
+}
+
+model cart {
+  id            Int         @id @default(autoincrement())
+  user_id       Int
+  session_token String?
+  reseved_until DateTime?
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
+  user          User        @relation(fields: [user_id], references: [id])
+  items         cart_item[]
+}
+
+model cart_item {
+  id             Int             @id @default(autoincrement())
+  cart_id        Int
+  variant_id     Int
+  quantity       Int             @default(1)
+  unit_price_dzd Float
+  added_at       DateTime        @default(now())
+  cart           cart            @relation(fields: [cart_id], references: [id])
+  variant        product_variant @relation(fields: [variant_id], references: [id])
+}
+
+model wishlist {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  product_id Int
+  added_at   DateTime @default(now())
+}
+
+model pc_build {
+  id               Int             @id @default(autoincrement())
+  user_id          Int
+  name             String
+  total_dzd        Float
+  wattage_estimate Int
+  wattage_psu      Int
+  is_compatible    Boolean
+  status           build_status    @default(draft)
+  created_at       DateTime        @default(now())
+  user             User            @relation(fields: [user_id], references: [id])
+  items            pc_build_item[]
+}
+
+model pc_build_item {
+  id               Int             @id @default(autoincrement())
+  build_id         Int
+  part_type        build_part_type
+  variant_id       Int
+  custom_name      String?
+  custom_price_dzd Float?
+  quantity         Int             @default(1)
+  is_compatible    Boolean
+  sort_order       Int
+  build            pc_build        @relation(fields: [build_id], references: [id])
+  variant          product_variant @relation(fields: [variant_id], references: [id])
+}
+
+model order {
+  id                   Int                    @id @default(autoincrement())
+  order_number         String                 @unique
+  user_id              Int
+  status               order_status           @default(new)
+  subtotal_dzd         Float
+  delivery_fee_dzd     Float
+  total_dzd            Float
+  currency             String                 @default("DZD")
+  payment_method_id    Int
+  payment_status       payment_status         @default(pending)
+  delivery_method_id   Int
+  shipping_address_id  Int
+  wilaya_code          Int
+  notes                String?
+  placed_at            DateTime               @default(now())
+  confirmed_at         DateTime?
+  shipped_at           DateTime?
+  delivered_at         DateTime?
+  user                 User                   @relation(fields: [user_id], references: [id])
+  payment_method       payment_method         @relation(fields: [payment_method_id], references: [id])
+  delivery_method      delivery_method        @relation(fields: [delivery_method_id], references: [id])
+  shipping_address     addresse               @relation(fields: [shipping_address_id], references: [id])
+  wilaya               wilaya                 @relation(fields: [wilaya_code], references: [code])
+  items                order_item[]
+  order_status_history order_status_history[]
+  rmaRequests          rma_request[]
+}
+
+model order_item {
+  id                     Int             @id @default(autoincrement())
+  order_id               Int
+  variant_id             Int
+  product_name_snapshot  String
+  variant_label_snapshot String
+  sku_snapshot           String
+  quantity               Int             @default(1)
+  unit_price_dzd         Float
+  line_price_dzd         Float
+  order                  order           @relation(fields: [order_id], references: [id])
+  variant                product_variant @relation(fields: [variant_id], references: [id])
+  rmaRequests            rma_request[]
+}
+
+model order_status_history {
+  id          Int           @id @default(autoincrement())
+  order_id    Int
+  from_status order_status?
+  to_status   order_status
+  changed_by  Int?
+  comment     String?
+  created_at  DateTime      @default(now())
+  order       order         @relation(fields: [order_id], references: [id])
+  user        User?         @relation(fields: [changed_by], references: [id])
+}
+
+model delivery_method {
+  id          Int           @id @default(autoincrement())
+  code        delivery_code @unique
+  name        String
+  description String?
+  fee_dzd     Float
+  eta_text    Int
+  order       order[]
+}
+
+model payment_method {
+  id          Int          @id @default(autoincrement())
+  code        payment_code @unique
+  name        String
+  description String?
+  is_active   Boolean      @default(true)
+  order       order[]
+}
+
+model rma_request {
+  id                    Int                  @id @default(autoincrement())
+  rma_number            String               @unique
+  order_id              Int
+  order_item_id         Int
+  user_id               Int
+  variant_id            Int
+  serial_imei           String?
+  issue_description     String
+  issue_title           String
+  status                rma_status           @default(received)
+  warrantly_valid_until DateTime?
+  technician_note       String?
+  created_at            DateTime             @default(now())
+  resolved_at           DateTime?
+  user                  User?                @relation(fields: [user_id], references: [id])
+  order                 order                @relation(fields: [order_id], references: [id])
+  order_item            order_item           @relation(fields: [order_item_id], references: [id])
+  variant               product_variant      @relation(fields: [variant_id], references: [id])
+  rma_status_history    rma_status_history[]
+}
+
+model rma_status_history {
+  id          Int         @id @default(autoincrement())
+  rma_id      Int
+  from_status rma_status?
+  to_status   rma_status
+  changed_by  Int?
+  comment     String?
+  created_at  DateTime    @default(now())
+  user        User?       @relation(fields: [changed_by], references: [id])
+  rmaRequest  rma_request @relation(fields: [rma_id], references: [id])
+}
+
+model product {
+  id                 Int               @id @default(autoincrement())
+  brand_id           Int
+  category_id        Int
+  name               String
+  model_number       String
+  sku_base           String
+  slug               String            @unique
+  description        String
+  status             product_status    @default(draft)
+  base_price_dzd     Float
+  base_old_price_dzd Float?
+  base_cost_dzd      Float?
+  badge              String?
+  cover_image_url    String?
+  warranty_months    Int?
+  is_featured        Boolean           @default(false)
+  created_by         Int
+  created_at         DateTime          @default(now())
+  updated_at         DateTime          @updatedAt
+  brand              brand             @relation(fields: [brand_id], references: [id])
+  category           category          @relation(fields: [category_id], references: [id])
+  user               User              @relation(fields: [created_by], references: [id])
+  productVariants    product_variant[]
+  productImages      products_images[]
+  productSpecs       product_specs[]
+}
+
+model product_variant {
+  id                 Int                  @id @default(autoincrement())
+  product_id         Int
+  sku                String               @unique
+  label              String
+  attributes         Json?
+  price_dzd          Float
+  cost_dzd           Float?
+  barcode            String?
+  is_active          Boolean              @default(true)
+  cart_items         cart_item[]
+  pc_build_items     pc_build_item[]
+  order_items        order_item[]
+  rmaRequests        rma_request[]
+  product            product              @relation(fields: [product_id], references: [id])
+  inventoryLevels    inventory_level[]
+  inventoryMovements inventory_movement[]
+}
+
+model products_images {
+  id         Int     @id @default(autoincrement())
+  product_id Int
+  image_url  String
+  sort_order Int     @default(0)
+  is_cover   Boolean @default(false)
+  product    product @relation(fields: [product_id], references: [id])
+}
+
+model product_specs {
+  id          Int     @id @default(autoincrement())
+  product_id  Int
+  key         String
+  value       String
+  is_key_spec Boolean @default(false)
+  sort_order  Int     @default(0)
+  product     product @relation(fields: [product_id], references: [id])
+}
+
+model inventory_level {
+  variant_id  Int             @id @default(autoincrement())
+  on_hand     Int
+  reserved    Int             @default(0)
+  threshold   Int             @default(0)
+  supplier_id Int?
+  updated_at  DateTime        @updatedAt
+  variant     product_variant @relation(fields: [variant_id], references: [id])
+  supplier    supplier?       @relation(fields: [supplier_id], references: [id])
+}
+
+model inventory_movement {
+  id         Int             @id @default(autoincrement())
+  variant_id Int
+  delta      Int
+  reason     movement_reason
+  reference  String?
+  note       String?
+  created_by Int
+  created_at DateTime        @default(now())
+  variant    product_variant @relation(fields: [variant_id], references: [id])
+  user       User            @relation(fields: [created_by], references: [id])
+}
+
+model supplier {
+  id              Int               @id @default(autoincrement())
+  name            String
+  contact         String?
+  phone           String?
+  email           String?
+  inventoryLevels inventory_level[]
+}
+
+model brand {
+  id         Int       @id @default(autoincrement())
+  name       String
+  slug       String    @unique
+  logo_url   String?
+  story      String?
+  is_active  Boolean   @default(true)
+  sort_order Int       @default(0)
+  products   product[]
+}
+
+model category {
+  id                   Int            @id @default(autoincrement())
+  parent_id            Int?
+  name                 String
+  slug                 String         @unique
+  product_count_cached Int            @default(0)
+  image_url            String?
+  spec_template_id     Int?
+  sort_order           Int            @default(0)
+  is_active            Boolean        @default(true)
+  products             product[]
+  spec_template        spec_template? @relation(fields: [spec_template_id], references: [id])
+  parent               category?      @relation("CategoryToCategory", fields: [parent_id], references: [id])
+  children             category[]     @relation("CategoryToCategory")
+}
+
+model spec_template {
+  id                Int                  @id @default(autoincrement())
+  name              String
+  description       String?
+  categories        category[]
+  specTemplateItems spec_template_item[]
+}
+
+model spec_template_item {
+  id          Int           @id @default(autoincrement())
+  template_id Int
+  field_key   String
+  field_type  String
+  is_key_spec Boolean       @default(false)
+  is_required Boolean       @default(false)
+  sort_order  Int           @default(0)
+  template    spec_template @relation(fields: [template_id], references: [id])
+}
+
+///: enum definitions :---------------------------------
+
+enum user_role {
+  customer
+  admin
+  manager
+  support
+  technician
+}
+
+enum customer_segment {
+  VIP
+  Regular
+}
+
+enum product_status {
+  draft
+  active
+  hidden
+  archived
+}
+
+enum order_status {
+  new
+  confirmed
+  preparing
+  shipped
+  delivered
+  cancelled
+  returned
+}
+
+enum payment_code {
+  cib_edahabia
+  cod
+  bank_transfer
+}
+
+enum payment_status {
+  pending
+  paid
+  failed
+  held_48h
+  refunded
+}
+
+enum delivery_code {
+  express
+  store_pickup
+  standard_wilaya
+}
+
+enum rma_status {
+  received
+  diagnosing
+  waiting_parts
+  repaired
+  replaced
+  refunded
+  resolved
+  rejected
+}
+
+enum movement_reason {
+  purchase_received
+  sale
+  return
+  adjust_add
+  adjust_remove
+  damage
+  transfer
+  initial
+}
+
+enum build_part_type {
+  processor
+  motherboard
+  memory
+  graphics
+  storage
+  psu
+  case
+  cooler
+  other
+}
+
+enum build_status {
+  draft
+  saved
+  converted_to_cart
+  ordered
+}
