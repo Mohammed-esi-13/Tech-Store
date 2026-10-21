@@ -1,20 +1,16 @@
 import express from "express";
 import "dotenv/config";
 import cors from "cors";
-
-// Placeholder API for NEOTEK Tech-Store.
-// The real schema lives in ./DataBase.json (Postgres, 27 tables).
-// Endpoints here will grow to match it: catalog, cart, orders, RMA, builds.
-
+import router from "./routes/product/productRouter.ts";
+import { connectDB, disconnectDB } from "./config/db.js";
 const app = express();
 // Docker maps host 5000 -> container 3000; Number() guards against unset/garbage values.
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 5000;
+
+connectDB();
 
 // Local dev servers are always allowed so the frontend works while developing.
-const devOrigins = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-];
+const devOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
 
 // Extra origins (production frontend URL) come from CORS_ORIGIN, comma-separated.
 const envOrigins = (process.env.CORS_ORIGIN ?? "")
@@ -41,6 +37,8 @@ app.get("/", (_req, res) => {
   res.json({ status: "ok", service: "tech-store-api" });
 });
 
+//API routes
+app.use("/api/products", router);
 // Placeholder router — replaced by real domain routes (products, orders, ...).
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", db: "not-connected-yet" });
@@ -50,14 +48,26 @@ const server = app.listen(PORT, () => {
   console.log(`tech-store-api listening on :${PORT}`);
 });
 
-process.on("unhandledRejection", () => {
-  server.close(() => process.exit(1));
+// unhandledRejection :
+process.on("unhandledRejection", (err) => {
+  server.close(async () => {
+    await disconnectDB();
+    process.exit(1);
+  });
 });
 
-process.on("uncaughtException", () => {
-  server.close(() => process.exit(1));
+// uncaughtException :
+process.on("uncaughtException", (err) => {
+  server.close(async () => {
+    await disconnectDB();
+    process.exit(1);
+  });
 });
 
-process.on("SIGTERM", () => {
-  server.close(() => process.exit(0));
+// SIGTERM :
+process.on("SIGTERM", async () => {
+  server.close(async () => {
+    await disconnectDB();
+    process.exit(0);
+  });
 });
